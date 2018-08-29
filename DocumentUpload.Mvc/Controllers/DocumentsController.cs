@@ -50,7 +50,8 @@ namespace DocumentUpload.Mvc.Controllers
                 var extension = Path.GetExtension(file.FileName);
                 if (AllowedExtensions.Contains(extension))
                 {
-                    var blockBlock = container.GetBlockBlobReference($"{id}{extension}");
+                    var documentName = $"{id}{extension}";
+                    var blockBlock = container.GetBlockBlobReference(documentName);
                     using (var stream = file.OpenReadStream())
                     {
                         await blockBlock.UploadFromStreamAsync(stream);
@@ -59,8 +60,9 @@ namespace DocumentUpload.Mvc.Controllers
                     _db.Documents.Add(new DocumentEntity
                     {
                         Id = id,
+                        DocumentName = documentName,
                         FileName = file.FileName,
-                        Location = blockBlock.Uri.AbsolutePath
+                        Location = blockBlock.Uri.AbsoluteUri
                     });
 
                     await _db.SaveChangesAsync();

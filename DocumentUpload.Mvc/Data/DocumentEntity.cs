@@ -9,5 +9,6 @@ namespace DocumentUpload.Mvc.Data
         public Guid Id { get; set; }
         public string FileName { get; set; }
         public string Location { get; set; }
+        public object DocumentName { get; set; }
     }
 }
