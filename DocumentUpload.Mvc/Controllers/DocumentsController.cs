@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using DocumentUpload.Mvc.Data;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
+using Microsoft.WindowsAzure.Storage;
 
 namespace DocumentUpload.Mvc.Controllers
 {
@@ -12,10 +14,12 @@ namespace DocumentUpload.Mvc.Controllers
     {
         public string[] AllowedExtensions = new[] { ".doc", ".docx", ".xls", ".xlsx" };
         private readonly AppDbContext _db;
+        private readonly CloudStorageAccount _storageAccount;
 
-        public DocumentsController(AppDbContext db)
+        public DocumentsController(AppDbContext db, IConfiguration configuration)
         {
             _db = db;
+            _storageAccount = CloudStorageAccount.Parse(configuration.GetConnectionString("BlobStorage"));
         }
         public IActionResult Index()
         {
@@ -33,22 +37,30 @@ namespace DocumentUpload.Mvc.Controllers
         [HttpPost]
         public async Task<IActionResult> Upload(IFormFile file)
         {
-            var filePath = Path.GetTempFileName();
+            var blobClient = _storageAccount.CreateCloudBlobClient();
+
+            var container = blobClient.GetContainerReference("files");
+
+            await container.CreateIfNotExistsAsync();
+
+            var id = Guid.NewGuid();
+            
             if (file.Length > 0)
             {
                 var extension = Path.GetExtension(file.FileName);
                 if (AllowedExtensions.Contains(extension))
                 {
-                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    var blockBlock = container.GetBlockBlobReference($"{id}{extension}");
+                    using (var stream = file.OpenReadStream())
                     {
-                        await file.CopyToAsync(stream);
+                        await blockBlock.UploadFromStreamAsync(stream);
                     }
 
                     _db.Documents.Add(new DocumentEntity
                     {
-                        Id = Guid.NewGuid(),
+                        Id = id,
                         FileName = file.FileName,
-                        Location = filePath
+                        Location = blockBlock.Uri.AbsolutePath
                     });
 
                     await _db.SaveChangesAsync();
